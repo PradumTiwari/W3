@@ -1,35 +1,60 @@
-import { useState } from 'react'
-import reactLogo from './assets/react.svg'
-import viteLogo from '/vite.svg'
-import './App.css'
+import React, { useEffect, useState } from 'react';
+import {useConnection, useWallet} from '@solana/wallet-adapter-react'
+import { WalletMultiButton } from '@solana/wallet-adapter-react-ui';
 
-function App() {
-  const [count, setCount] = useState(0)
+const App=()=>{
+  const {publicKey,disconnect}=useWallet();
+  const {connection}=useConnection();
+  const [balance,setBalance]=useState(null);
+   useEffect(()=>{
+    const getBalance=async()=>{
+      if(publicKey){
+        const lamports=await connection.getBalance(publicKey);
+        setBalance(lamports/1e9);
+      }
+    }
 
-  return (
-    <>
-      <div>
-        <a href="https://vite.dev" target="_blank">
-          <img src={viteLogo} className="logo" alt="Vite logo" />
-        </a>
-        <a href="https://react.dev" target="_blank">
-          <img src={reactLogo} className="logo react" alt="React logo" />
-        </a>
-      </div>
-      <h1>Vite + React</h1>
-      <div className="card">
-        <button onClick={() => setCount((count) => count + 1)}>
-          count is {count}
-        </button>
-        <p>
-          Edit <code>src/App.jsx</code> and save to test HMR
-        </p>
-      </div>
-      <p className="read-the-docs">
-        Click on the Vite and React logos to learn more
-      </p>
-    </>
+    getBalance();
+  },[publicKey,connection])
+
+
+  const reqAirdrop=async()=>{
+  try {
+    if(!publicKey)throw new Error("Connect Wallet First");
+    const sig=await connection.requestAirdrop(publicKey,1e9);
+    await connection.confirmTransaction(sig,'confirmed');
+
+    alert("Airdrop Sucessful");
+     const lamports = await connection.getBalance(publicKey);
+      setBalance(lamports / 1e9);
+    
+  } catch (error) {
+    console.error(error);
+    alert("Airdrop Failed");
+  }
+}
+  
+ 
+  return(
+      <div style={{ padding: '40px', fontFamily: 'sans-serif' }}>
+       <h1>Simple Solana Dapps</h1>
+       <WalletMultiButton/>
+       {publicKey?(
+           <div style={{ marginTop: '20px' }}>
+                    <p><strong>Connected Wallet:</strong> {publicKey.toBase58()}</p>
+                    <strong>Balance:{balance}</strong>
+                    <button onClick={reqAirdrop} style={{marginTop:'10px'}}>
+                      AirDrop 1 sol (devnet)
+                    </button>
+                    <button onClick={disconnect}>Disconnect</button>
+                </div>
+       ):(
+         <p>No wallet connected</p>
+       )}
+        </div>
   )
 }
 
-export default App
+
+
+export default App;
