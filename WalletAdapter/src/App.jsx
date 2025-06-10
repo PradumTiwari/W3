@@ -1,58 +1,48 @@
-import React, { useEffect, useState } from 'react';
-import {useConnection, useWallet} from '@solana/wallet-adapter-react'
-import { WalletMultiButton } from '@solana/wallet-adapter-react-ui';
+import { useWallet } from "@solana/wallet-adapter-react";
+import { WalletMultiButton } from "@solana/wallet-adapter-react-ui";
+
+import bs58 from 'bs58'
 
 const App=()=>{
-  const {publicKey,disconnect}=useWallet();
-  const {connection}=useConnection();
-  const [balance,setBalance]=useState(null);
-   useEffect(()=>{
-    const getBalance=async()=>{
-      if(publicKey){
-        const lamports=await connection.getBalance(publicKey);
-        setBalance(lamports/1e9);
-      }
+   const {publicKey,signMessage}=useWallet();
+  
+  const signMyMessage=async()=>{
+   
+    if(!publicKey){
+      alert("Connect Your Wallet first");
+      return;
+    }
+    if(!signMessage){
+      alert("Your Wallet Doesnot support Message Signing");
+      return;
     }
 
-    getBalance();
-  },[publicKey,connection])
+    try {
+      const message=new TextEncoder().encode("Hello from My solana DApp");
+      const signature=await signMessage(message);
+      const encoded=bs58.encode(signature);
+      alert("Message Signed");
+      console.log("Signature (base58):", encoded);
+        console.log("Wallet:", publicKey.toBase58());
+    } catch (error) {
+       console.error("Signing failed:", error);
+        alert("Failed to sign message.");
+    }
 
 
-  const reqAirdrop=async()=>{
-  try {
-    if(!publicKey)throw new Error("Connect Wallet First");
-    const sig=await connection.requestAirdrop(publicKey,1e9);
-    await connection.confirmTransaction(sig,'confirmed');
-
-    alert("Airdrop Sucessful");
-     const lamports = await connection.getBalance(publicKey);
-      setBalance(lamports / 1e9);
-    
-  } catch (error) {
-    console.error(error);
-    alert("Airdrop Failed");
   }
-}
-  
- 
-  return(
-      <div style={{ padding: '40px', fontFamily: 'sans-serif' }}>
-       <h1>Simple Solana Dapps</h1>
-       <WalletMultiButton/>
-       {publicKey?(
-           <div style={{ marginTop: '20px' }}>
-                    <p><strong>Connected Wallet:</strong> {publicKey.toBase58()}</p>
-                    <strong>Balance:{balance}</strong>
-                    <button onClick={reqAirdrop} style={{marginTop:'10px'}}>
-                      AirDrop 1 sol (devnet)
-                    </button>
-                    <button onClick={disconnect}>Disconnect</button>
-                </div>
-       ):(
-         <p>No wallet connected</p>
-       )}
-        </div>
+
+
+  return (
+    <div>
+      <WalletMultiButton/>
+      {publicKey && (
+    <button onClick={signMyMessage} style={{ marginTop: '10px' }}>
+        Sign Message
+    </button>)}
+    </div>
   )
+  
 }
 
 
