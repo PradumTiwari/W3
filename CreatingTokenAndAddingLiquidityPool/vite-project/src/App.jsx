@@ -12,6 +12,7 @@ import { PhantomWalletAdapter } from '@solana/wallet-adapter-wallets';
 
 
 function App() {
+
  const endpoint=clusterApiUrl('devnet')
 const wallets = [new PhantomWalletAdapter()];
   return (
@@ -19,7 +20,7 @@ const wallets = [new PhantomWalletAdapter()];
    <WalletProvider wallets={wallets} autoConnect>
       <WalletModalProvider>
         <div className='App'>
-          <h1>Create TOken</h1>
+          <h1>Create Token</h1>
           <WalletMultiButton/>
           <CreateToken/>
         </div>

@@ -1,8 +1,13 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useConnection, useWallet } from '@solana/wallet-adapter-react';
 import {
+  createAssociatedTokenAccount,
+  createAssociatedTokenAccountInstruction,
   createInitializeMintInstruction,
+  createMintToInstruction,
+  getAssociatedTokenAddress,
   getMinimumBalanceForRentExemptMint,
+  getOrCreateAssociatedTokenAccount,
   MINT_SIZE,
   TOKEN_PROGRAM_ID
 } from '@solana/spl-token';
@@ -11,26 +16,33 @@ import {
   SystemProgram,
   Transaction,
 } from '@solana/web3.js';
+import GetToken from './GetToken';
 
 const CreateToken = () => {
+  const [showGet,setShowGet]=useState(false);
   const { connection } = useConnection();
   const { publicKey, sendTransaction } = useWallet();
+  const [token,setToken]=useState('');
+  const [ata,setAta]=useState('');
+
+      // ✅ Step 1: Generate new mint keypair
+    const mintKeyPair = Keypair.generate();
+
+    
+      // ✅ Step 3: Create transaction
+      const transaction = new Transaction();
 
   const handleCreateToken = async () => {
     if (!publicKey || !sendTransaction) {
       alert("Please connect your wallet first");
       return;
     }
+    
 
     try {
-      // ✅ Step 1: Generate new mint keypair
-      const mintKeyPair = Keypair.generate();
-
-      // ✅ Step 2: Get minimum rent-exempt lamports for mint account
+        // ✅ Step 2: Get minimum rent-exempt lamports for mint account
       const lamports = await getMinimumBalanceForRentExemptMint(connection);
 
-      // ✅ Step 3: Create transaction
-      const transaction = new Transaction();
 
       // ✅ Step 4: Add instructions to create and initialize mint
       transaction.add(
@@ -68,24 +80,81 @@ const CreateToken = () => {
         'confirmed'
       );
 
-
+    const token=mintKeyPair.publicKey.toBase58();
+   setToken(token);
       console.log("✅ Mint created at:", mintKeyPair.publicKey.toBase58());
+       
+       //Now time to create an Account that will hold the balance of the new token
 
+       const associatedTokenAccount=await getAssociatedTokenAddress(
+        mintKeyPair.publicKey,
+        publicKey
+       )
 
-      
-      alert(`✅ Mint created!\n\nAddress: ${mintKeyPair.publicKey.toBase58()}`);
+       console.log("Assoicated",associatedTokenAccount);
+       
+
+       const accountInfo=await connection.getAccountInfo(associatedTokenAccount);
+
+       if(!accountInfo){
+        const ataIx=createAssociatedTokenAccountInstruction(
+          publicKey,
+          associatedTokenAccount,
+          publicKey,
+          mintKeyPair.publicKey,
+
+        )
+         const ataTx = new Transaction().add(ataIx);
+        const ataTxid = await sendTransaction(ataTx, connection);
+        await connection.confirmTransaction(ataTxid, 'confirmed');
+
+          console.log("Assoicated Token Account created ",associatedTokenAccount.toBase58());
+           setAta(associatedTokenAccount.toBase58());
+       }
+         console.log("✅ Token Account address:", associatedTokenAccount.toBase58());
+
     } catch (error) {
       console.error("❌ Error creating mint:", error);
       alert(`❌ Error:\n${error.message}`);
     }
   };
 
+
+  const mintToken=async()=>{
+    const mintIx=createMintToInstruction(
+      mintKeyPair.publicKey,
+      ata,
+      publicKey,
+       1_000_000_000
+
+    );
+   const mintTx = new Transaction().add(mintIx);
+    const txid = await sendTransaction(mintTx, connection);
+    await connection.confirmTransaction(txid, 'confirmed');
+
+    console.log("✅ Minted tokens to your ATA!");
+    alert("✅ Successfully minted tokens!");
+  }
+
   return (
     <div>
-      <button onClick={handleCreateToken} className="p-2 bg-blue-600 text-white rounded mt-4">
+    {!ata?(<button onClick={handleCreateToken} className="p-2 bg-blue-600 text-white rounded mt-4">
         Create Mint
       </button>
-    </div>
+    ):  (
+       <div>
+          <p className="text-green-700 font-semibold">✅ Token Mint Address:</p>
+          <p className="break-all">{token}</p>
+          <p className="text-green-700 font-semibold mt-2">✅ ATA Address:</p>
+          <p className="break-all">{ata}</p>
+          <button onClick={mintToken}>MintSomeTokenToYour_Own_ATA</button>
+        </div>
+    )}
+    <button onClick={()=>{
+      setShowGet(true);
+    }}>Get Token</button>
+    {showGet&&<GetToken connection={connection} publicKey={publicKey}/>}
+  </div>
   );
 };
 
