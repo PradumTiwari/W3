@@ -289,3 +289,36 @@
 // fn print<T: std::fmt::Debug>(x: T) {
 //     println!("{}", x);
 // }
+
+
+//Implementing own traits and generics
+
+// trait speak{
+//     fn speak(&self);
+// }
+// //this says any type that implements speak must have a speak() method
+
+
+// struct Dog;
+
+// impl speak for Dog{
+//     fn speak(&self){
+//         println!("Woooo Auhhh");
+//     }
+// }
+
+// struct parrot;
+// impl speak for parrot{
+//     fn speak(&self){
+//         println!("Squakk");
+//     }
+// }
+
+// fn make_speak<T:speak>(animal:T){
+//     animal.speak();
+// }
+
+// fn main(){
+   
+//     make_speak(parrot);
+// }
