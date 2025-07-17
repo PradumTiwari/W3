@@ -1,73 +1,56 @@
 use solana_program::{
-    account_info::{next_account_info,AccountInfo},
-    entrypoint,
-    entrypoint::ProgramResult,
-    pubkey::Pubkey,
-    msg,
-    program_error::ProgramError
+    account_info::{next_account_info,AccountInfo}, entrypoint::{self, ProgramResult}, example_mocks::solana_sdk::system_program, lamports, msg, program::invoke, program_error::ProgramError, pubkey::Pubkey, system_instruction, sysvar::{rent::Rent,Sysvar}
 };
 
-entrypoint!(process_instruction);
+entrypoint!(program_instruction);
 
-use borsh::{BorshDeserialize,BorshSerialize};
-
-#[derive(BorshSerialize,BorshDeserialize,Debug)]
-
-pub struct Counter{
-    pub count:u8,
-}
-
-
-pub enum CounterInstruction{
-    Increment,
-    Decrement,
-    Reset,
-}
-
-impl CounterInstruction{
-    pub fn unpack(input:&[u8])->Result<Self,ProgramError>{
-        match input{
-            [0]=>Ok(Self::Increment),
-            [1]=>Ok(Self::Decrement),
-            [2]=>Ok(Self::Reset),
-            _=>Err(ProgramError::InvalidInstructionData),
-        }
-    }
-}
-
-pub fn process_instruction(
+pub fn program_instruction(
     _program_id:&Pubkey,
     accounts:&[AccountInfo],
-    instruction_data:&[u8],
+    _instruction_data:&[u8],
 )->ProgramResult{
 
-    let account=next_account_info(&mut accounts.iter())?;
-    let data=account.try_borrow_mut_data()?;
+    //Step 1 get accounts
+    let account_info_iter=&mut accounts.iter();
 
-    //Deserialize the counter from the byte array
-    let mut counter=Counter::try_from_slice(&data)?;
+    let payer=next_account_info(account_info_iter)?;
 
-    //Decode the instruction
-    let instruction=CounterInstruction::unpack(instruction_data)?;
+    let new_account=next_account_info(account_info_iter)?;
 
-    match instruction{
-        CounterInstruction::Decrement=>{
-            msg!("Decrementing");
-            counter.count=counter.count.wrapping_sub(1);
+    let system_program=next_account_info(account_info_iter)?;
 
-        }
-        CounterInstruction::Increment=>{
-            msg!("Incrementing");
-            counter.count=counter.count.wrapping_add(1);
-        }
-        CounterInstruction::Reset=>{
-            msg!("Reseting");
-            counter.count=0;
-        }
-    }
-  
-  //serialize the counter back to bytes
-  counter.serialize(&mut *data)?;
 
-     Ok(())
+    //step 2 :Define size and rent
+
+    let space=1;
+    let rent=Rent::get()?;
+    let lamports=rent.minimum_balance(space);
+    //Create Instruction
+
+    let create_account_ix=system_instruction::create_account(
+        payer.key, new_account.key, lamports,
+         space as u64,
+         _program_id,
+        );
+
+        //Step-4 call the system Program
+
+        invoke(&create_account_ix,
+        &[payer.clone(),new_account.clone(),system_program.clone()],
+        )?;
+
+        //Step 5 write data to the new account
+
+        let data=&mut *new_account.try_borrow_mut_data()?;
+        data[0]=100;
+
+        msg!("New Account Created and Intialized");
+
+        
+
+
+                                                                            
+
+    Ok(())
+
 }
