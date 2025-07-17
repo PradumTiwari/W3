@@ -9,31 +9,50 @@ use solana_program::{
 
 entrypoint!(process_instruction);
 
+pub enum CounterInstruction{
+    Increment,
+    Decrement,
+    Reset,
+}
+
+impl CounterInstruction{
+    pub fn unpack(input:&[u8])->Result<Self,ProgramError>{
+        let (&tag,_)=input.split_first().ok_or(ProgramError::InvalidInstructionData)?;
+
+        match tag{
+            0=>Ok(Self::Increment),
+            1=>Ok(Self::Decrement),
+            2=>Ok(Self::Reset),
+            _=>Err(ProgramError::InvalidInstructionData),
+        }
+    }
+}
 
 pub fn process_instruction(
     _program_id:&Pubkey,
     accounts:&[AccountInfo],
     instruction_data:&[u8],
 )->ProgramResult{
+    let account=next_account_info(&mut accounts.iter())?;
+    let data=&mut *account.try_borrow_mut_data()?;
+    let counter = &mut data[0];
 
-  let account=next_account_info(&mut accounts.iter())?;
-  let data=&mut *account.try_borrow_mut_data()?;
+    let instruction=CounterInstruction::unpack(instruction_data)?;
 
-  let counter = &mut data[0];  // get the first byte
+    match instruction{
+        CounterInstruction::Increment=>{
+            *counter=counter.wrapping_add(1);
+        }
 
-    match instruction_data {
-        [0] => {
-            *counter = counter.wrapping_add(1); // add 1
+        CounterInstruction::Decrement=>{
+            *counter=counter.wrapping_sub(1);
         }
-        [1] => {
-            *counter = counter.wrapping_sub(1); // subtract 1
-        }
-        [2] => {
-            *counter = 0; // reset to 0
-        }
-        _ => {
-            return Err(ProgramError::InvalidInstructionData); // reject invalid
+
+        CounterInstruction::Reset=>{
+            *counter=0;
         }
     }
-        Ok(())
-  }
+
+
+    Ok(())
+}
