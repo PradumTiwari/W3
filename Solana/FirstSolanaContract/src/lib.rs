@@ -1,56 +1,37 @@
+use borsh::{BorshDeserialize, BorshSerialize};
 use solana_program::{
-    account_info::{next_account_info,AccountInfo}, entrypoint::{self, ProgramResult}, example_mocks::solana_sdk::system_program, lamports, msg, program::invoke, program_error::ProgramError, pubkey::Pubkey, system_instruction, sysvar::{rent::Rent,Sysvar}
+    account_info::{next_account_info, AccountInfo},
+    entrypoint,
+    entrypoint::ProgramResult,
+    msg,
+    pubkey::Pubkey,
 };
 
-entrypoint!(program_instruction);
+#[derive(BorshSerialize, BorshDeserialize, Debug)]
+pub struct Counter {
+    pub count: u32,
+}
 
-pub fn program_instruction(
-    _program_id:&Pubkey,
-    accounts:&[AccountInfo],
-    _instruction_data:&[u8],
-)->ProgramResult{
+// Declare the entrypoint of the program
+entrypoint!(process_instruction);
 
-    //Step 1 get accounts
-    let account_info_iter=&mut accounts.iter();
+// Main logic of the program
+fn process_instruction(
+    _program_id: &Pubkey,       // ID of the program
+    accounts: &[AccountInfo],   // Account passed from client
+    _instruction_data: &[u8],   // Not used in this example
+) -> ProgramResult {
+    msg!("Simple Counter Program");
 
-    let payer=next_account_info(account_info_iter)?;
+    let accounts_iter = &mut accounts.iter();
+    let counter_account = next_account_info(accounts_iter)?; // Get first account
 
-    let new_account=next_account_info(account_info_iter)?;
+    let mut counter_data = Counter::try_from_slice(&counter_account.data.borrow())?;
+    msg!("Current count: {}", counter_data.count);
 
-    let system_program=next_account_info(account_info_iter)?;
+    counter_data.count += 1;
+    counter_data.serialize(&mut &mut counter_account.data.borrow_mut()[..])?;
 
-
-    //step 2 :Define size and rent
-
-    let space=1;
-    let rent=Rent::get()?;
-    let lamports=rent.minimum_balance(space);
-    //Create Instruction
-
-    let create_account_ix=system_instruction::create_account(
-        payer.key, new_account.key, lamports,
-         space as u64,
-         _program_id,
-        );
-
-        //Step-4 call the system Program
-
-        invoke(&create_account_ix,
-        &[payer.clone(),new_account.clone(),system_program.clone()],
-        )?;
-
-        //Step 5 write data to the new account
-
-        let data=&mut *new_account.try_borrow_mut_data()?;
-        data[0]=100;
-
-        msg!("New Account Created and Intialized");
-
-        
-
-
-                                                                            
-
+    msg!("Counter incremented to: {}", counter_data.count);
     Ok(())
-
 }
