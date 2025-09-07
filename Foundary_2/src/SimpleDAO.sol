@@ -16,10 +16,12 @@ contract SimpleDAO{
 
      Proposal[] public proposals; // store all proposals
 
-       function createProposal(string memory _description) public {
+       function createProposal(string memory _description,uint _votingPeriod) public {
+        require(_votingPeriod>0 ,"Voting period must be > 0");
         Proposal storage newProposal = proposals.push();
+
         newProposal.description = _description;
-        newProposal.deadline = block.timestamp + 1 days; // voting open for 1 day
+        newProposal.deadline = block.timestamp +_votingPeriod; // voting open for 1 day
         newProposal.executed = false;
     }
 
