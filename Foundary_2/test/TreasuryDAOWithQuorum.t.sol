@@ -16,7 +16,7 @@ contract TreasuryDAOWithQuorumTest is Test{
 
     function setUp() public{
         //quorou =3 (minimum 3 votes)
-        dao=new TreasuryDAOWithQuorum(3);
+        dao=new TreasuryDAOWithQuorum(3,1 days);
 
         //Fund dao wth 5 ether
         vm.deal(address(this),10 ether);
@@ -35,13 +35,47 @@ contract TreasuryDAOWithQuorumTest is Test{
         vm.prank(addr2);
         dao.vote(0,true);
 
+        vm.prank(addr3);
+        dao.vote(0,true);
+
         //Move time forward so voting period ends
         vm.warp(block.timestamp+1 days+1);
-
+     
+        dao.finalizeProposal(0);
         //try to execute =>should revert back quorum(4) not reached
 
-        vm.expectRevert(bytes("Quorum not reached"));
+        vm.expectRevert(bytes("timeLock not passed"));
         dao.executeProposal(0);
     }
+
+
+
+    function testExecuteAfterTimelock() public{
+        dao.createProposal("Pay alice 2 Eth", alice, 2 ether, 1 days);
+        vm.prank(addr1);
+        
+        dao.vote(0,true);
+
+         vm.prank(addr2);
+        dao.vote(0,true);
+
+         vm.prank(addr3);
+        dao.vote(0,true);
+
+
+        //Fast forward beyond voting period
+        vm.warp(block.timestamp+1 days+1);
+        dao.finalizeProposal(0);
+
+
+        //fast forward timelock
+       vm.warp(block.timestamp + 1 days + 1);
+
+       uint balanceBefore=alice.balance;
+       dao.executeProposal(0);
+       assertEq(alice.balance,balanceBefore+2 ether);
+    }
+
+    
 }
 
