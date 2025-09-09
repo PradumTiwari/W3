@@ -1,8 +1,11 @@
-//SPDX-License-Identification:MIT
-
+// SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
-contract TreasuryDAOWithQuorum{
+import "@chainlink/contracts/src/v0.8/AutomationCompatible.sol";
+
+contract TreasuryDAOWithQuorum is AutomationCompatibleInterface {
+
+
     struct Proposal{
         string description;
         address payable recipent;
@@ -24,6 +27,8 @@ contract TreasuryDAOWithQuorum{
 
     uint public timelockDelay; //Seconds to wait after approval
 
+    //Pointer to avoid rescan from 0 every time(gas-freindly)
+    uint public nextExecutable;
 
 
     receive() external payable {}
@@ -34,6 +39,7 @@ contract TreasuryDAOWithQuorum{
         require(_timelockDelay>0,"TIme lock must be >0");
         quorumVotes=_qorumVotes;
         timelockDelay=_timelockDelay;
+        nextExecutable=0;
     }
 
     //Creat proposal : recipent+amount+voting period
@@ -54,11 +60,11 @@ contract TreasuryDAOWithQuorum{
         p.amount = _amount;
         p.deadline = block.timestamp + _votingPeriod;
         
-
-
     }
 
     function vote(uint _proposalId,bool _voteYes) public{
+
+        require(_proposalId<proposals.length,"Proposal Not found");
         Proposal storage p=proposals[_proposalId];
 
         require(block.timestamp<p.deadline,"Voting ended");
@@ -103,7 +109,69 @@ contract TreasuryDAOWithQuorum{
         (bool success,)=p.recipent.call{value:p.amount}("");
 
         require(success,"Transfer failed");
+
+
+        while(nextExecutable<proposals.length){
+            Proposal storage q=proposals[nextExecutable];
+            if(q.executed){
+                nextExecutable++;
+            }
+            else{
+                break;
+            }
+        }
     }
+
+    //ChainLink automation interface
+
+    //checkUpKeep is called off-chain by automation nodes
+    //it should return (true,performData) when there is atleast one proposal ready to be executed
+
+       function checkUpkeep(bytes calldata) external  override returns (bool upkeepNeeded, bytes memory performData) {   uint len=proposals.length;
+        uint i=nextExecutable;
+
+        //Scan for first ready proposal 
+        for(;i<len;i++){
+            Proposal storage p=proposals[i];
+            //ready if approved,not executed,and readyAt<=now
+
+            if(p.approved&&!p.executed&&block.timestamp>=p.readyAt){
+                upkeepNeeded=true;
+                performData=abi.encode(i);
+                return (upkeepNeeded,performData);
+            }
+        }
+
+        upkeepNeeded=false;
+        performData=bytes("");
+    }
+
+
+    //PerformUpKeep is called on-chain by automation nodes when checkUpkeep returned true
+
+    function performUpkeep(bytes calldata performData) external override {    require(performData.length==32,"Invalid perform data");
+        uint256 proposalId=abi.decode(performData,(uint256));
+
+       require(proposalId<proposals.length,"Proposal not found");
+       Proposal storage p=proposals[proposalId];
+
+       require(p.approved,"Not approved");
+       require(!p.executed,"Already executed");
+       require(block.timestamp>=p.readyAt,"TImelock not passed");
+       require(address(this).balance>=p.amount,"insufficent funds");
+
+       //Perform executrion (same as execute propsal )
+       p.executed=true;
+       (bool success,)=p.recipent.call{value:p.amount}("");
+       require(success,"Transfer failed");
+
+       //update next executable 
+         while (nextExecutable < proposals.length) {
+            Proposal storage q = proposals[nextExecutable];
+            if (q.executed) { nextExecutable++; } else { break; }
+        }
+    }
+
 
     function getProposal(uint _proposalId) public view returns(string memory description,address recipent,uint amount,uint deadline,uint yesVotes,uint noVotes,bool executed,bool approved,uint readyAt){
 
